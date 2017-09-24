@@ -3,20 +3,21 @@ package collectors
 import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/msiedlarek/nifi_exporter/nifi/client"
+	"sync"
 )
 
 type CountersCollector struct {
-	client             *client.Client
+	nodes map[string]*client.Client
 	counterTotalMetric *prometheus.Desc
 }
 
-func NewCountersCollector(client *client.Client) *CountersCollector {
+func NewCountersCollector(nodes map[string]*client.Client) *CountersCollector {
 	return &CountersCollector{
-		client: client,
+		nodes: nodes,
 		counterTotalMetric: prometheus.NewDesc(
 			MetricNamePrefix+"counter_total",
 			"The value of the counter.",
-			[]string{"node_id", "id", "context", "name"},
+			[]string{"alias", "node_id", "id", "context", "name"},
 			nil,
 		),
 	}
@@ -27,34 +28,44 @@ func (c *CountersCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *CountersCollector) Collect(ch chan<- prometheus.Metric) {
-	counterStats, err := c.client.GetCounters(true, "")
-	if err != nil {
-		ch <- prometheus.NewInvalidMetric(c.counterTotalMetric, err)
-		return
-	}
+	var wg sync.WaitGroup
+	for alias, api := range c.nodes {
+		wg.Add(1)
+		go func(alias string, api *client.Client){
+			defer wg.Done()
 
-	nodes := make(map[string][]client.CounterDTO)
-	if len(counterStats.NodeSnapshots) > 0 {
-		for i := range counterStats.NodeSnapshots {
-			snapshot := &counterStats.NodeSnapshots[i]
-			nodes[snapshot.NodeID] = snapshot.Snapshot.Counters
-		}
-	} else if counterStats.AggregateSnapshot != nil {
-		nodes[AggregateNodeID] = counterStats.AggregateSnapshot.Counters
-	}
+			counterStats, err := api.GetCounters(true, "")
+			if err != nil {
+				ch <- prometheus.NewInvalidMetric(c.counterTotalMetric, err)
+				return
+			}
 
-	for nodeID, counters := range nodes {
-		for i := range counters {
-			counter := &counters[i]
-			ch <- prometheus.MustNewConstMetric(
-				c.counterTotalMetric,
-				prometheus.CounterValue,
-				float64(counter.ValueCount),
-				nodeID,
-				counter.ID,
-				counter.Context,
-				counter.Name,
-			)
-		}
+			nodes := make(map[string][]client.CounterDTO)
+			if len(counterStats.NodeSnapshots) > 0 {
+				for i := range counterStats.NodeSnapshots {
+					snapshot := &counterStats.NodeSnapshots[i]
+					nodes[snapshot.NodeID] = snapshot.Snapshot.Counters
+				}
+			} else if counterStats.AggregateSnapshot != nil {
+				nodes[AggregateNodeID] = counterStats.AggregateSnapshot.Counters
+			}
+
+			for nodeID, counters := range nodes {
+				for i := range counters {
+					counter := &counters[i]
+					ch <- prometheus.MustNewConstMetric(
+						c.counterTotalMetric,
+						prometheus.CounterValue,
+						float64(counter.ValueCount),
+						alias,
+						nodeID,
+						counter.ID,
+						counter.Context,
+						counter.Name,
+					)
+				}
+			}
+		}(alias, api)
 	}
+	wg.Wait()
 }

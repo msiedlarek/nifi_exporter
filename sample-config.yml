@@ -1,7 +1,12 @@
 ---
 exporter:
   listenAddress: 127.0.0.1:9103
-nifi:
-  url: https://nifi.example.com:8080
-  username: nifiuser
-  password: 123456
+nodes:
+  testing:
+    url: https://test-nifi.example.com:8080
+    username: nifitest
+    password: abc123
+  production:
+    url: https://nifi.example.com:8080
+    username: nifiuser
+    password: 123456

@@ -25,11 +25,11 @@ type Configuration struct {
 	Exporter struct {
 		ListenAddress string `yaml:"listenAddress" validate:"required"`
 	} `yaml:"exporter" validate:"required"`
-	NiFi struct {
+	Nodes map[string]*struct {
 		URL      string `yaml:"url" validate:"required,url"`
 		Username string `yaml:"username" validate:"required"`
 		Password string `yaml:"password" validate:"required"`
-	} `yaml:"nifi" validate:"required"`
+	} `yaml:"nodes" validate:"required,dive"`
 }
 
 func main() {
@@ -95,20 +95,24 @@ func loadConfig(configPath string) (*Configuration, error) {
 }
 
 func start(config *Configuration) error {
-	log.WithFields(log.Fields{
-		"url":      config.NiFi.URL,
-		"username": config.NiFi.Username,
-	}).Info("Connecting to NiFi...")
+	nodes := make(map[string]*client.Client)
+	for alias := range config.Nodes {
+		node := config.Nodes[alias]
+		log.WithFields(log.Fields{
+			"alias":    alias,
+			"url":      node.URL,
+			"username": node.Username,
+		}).Info("Connecting to NiFi...")
+		nodes[alias] = client.NewClient(node.URL, node.Username, node.Password)
+	}
 
-	c := client.NewClient(config.NiFi.URL, config.NiFi.Username, config.NiFi.Password)
-
-	if err := prometheus.DefaultRegisterer.Register(collectors.NewDiagnosticsCollector(c)); err != nil {
+	if err := prometheus.DefaultRegisterer.Register(collectors.NewDiagnosticsCollector(nodes)); err != nil {
 		return errors.Annotate(err, "Couldn't register system diagnostics collector.")
 	}
-	if err := prometheus.DefaultRegisterer.Register(collectors.NewCountersCollector(c)); err != nil {
+	if err := prometheus.DefaultRegisterer.Register(collectors.NewCountersCollector(nodes)); err != nil {
 		return errors.Annotate(err, "Couldn't register counters collector.")
 	}
-	if err := prometheus.DefaultRegisterer.Register(collectors.NewProcessGroupsCollector(c)); err != nil {
+	if err := prometheus.DefaultRegisterer.Register(collectors.NewProcessGroupsCollector(nodes)); err != nil {
 		return errors.Annotate(err, "Couldn't register process groups collector.")
 	}
 

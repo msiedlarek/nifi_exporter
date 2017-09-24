@@ -1,6 +1,8 @@
 package collectors
 
 import (
+	"sync"
+
 	"github.com/msiedlarek/nifi_exporter/nifi/client"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -8,7 +10,7 @@ import (
 const rootProcessGroupID = "root"
 
 type ProcessGroupsCollector struct {
-	client *client.Client
+	nodes map[string]*client.Client
 
 	bulletin5mCount *prometheus.Desc
 	componentCount  *prometheus.Desc
@@ -30,22 +32,22 @@ type ProcessGroupsCollector struct {
 	activeThreadCount           *prometheus.Desc
 }
 
-func NewProcessGroupsCollector(client *client.Client) *ProcessGroupsCollector {
+func NewProcessGroupsCollector(nodes map[string]*client.Client) *ProcessGroupsCollector {
 	prefix := MetricNamePrefix + "pg_"
-	statLabels := []string{"node_id", "group"}
+	statLabels := []string{"alias", "node_id", "group"}
 	return &ProcessGroupsCollector{
-		client: client,
+		nodes: nodes,
 
 		bulletin5mCount: prometheus.NewDesc(
 			prefix+"bulletin_5m_count",
 			"Number of bulletins posted during last 5 minutes.",
-			[]string{"group", "level"},
+			[]string{"alias", "group", "level"},
 			nil,
 		),
 		componentCount: prometheus.NewDesc(
 			prefix+"component_count",
 			"The number of components in this process group.",
-			[]string{"group", "status"},
+			[]string{"alias", "group", "status"},
 			nil,
 		),
 
@@ -164,18 +166,27 @@ func (c *ProcessGroupsCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *ProcessGroupsCollector) Collect(ch chan<- prometheus.Metric) {
-	entities, err := c.client.GetProcessGroups(rootProcessGroupID)
-	if err != nil {
-		ch <- prometheus.NewInvalidMetric(c.bulletin5mCount, err)
-		return
-	}
+	var wg sync.WaitGroup
+	for alias, api := range c.nodes {
+		wg.Add(1)
+		go func(alias string, api *client.Client) {
+			defer wg.Done()
 
-	for i := range entities {
-		c.collect(ch, &entities[i])
+			entities, err := api.GetProcessGroups(rootProcessGroupID)
+			if err != nil {
+				ch <- prometheus.NewInvalidMetric(c.componentCount, err)
+				return
+			}
+
+			for i := range entities {
+				c.collect(ch, alias, &entities[i])
+			}
+		}(alias, api)
 	}
+	wg.Wait()
 }
 
-func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *client.ProcessGroupEntity) {
+func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, alias string, entity *client.ProcessGroupEntity) {
 	bulletinCount := map[string]int{
 		"INFO":    0,
 		"WARNING": 0,
@@ -189,6 +200,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			c.bulletin5mCount,
 			prometheus.GaugeValue,
 			float64(count),
+			alias,
 			entity.Component.Name,
 			level,
 		)
@@ -208,6 +220,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 		c.componentCount,
 		prometheus.GaugeValue,
 		float64(entity.RunningCount),
+		alias,
 		entity.Component.Name,
 		"running",
 	)
@@ -215,6 +228,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 		c.componentCount,
 		prometheus.GaugeValue,
 		float64(entity.StoppedCount),
+		alias,
 		entity.Component.Name,
 		"stopped",
 	)
@@ -222,6 +236,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 		c.componentCount,
 		prometheus.GaugeValue,
 		float64(entity.InvalidCount),
+		alias,
 		entity.Component.Name,
 		"invalid",
 	)
@@ -229,6 +244,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 		c.componentCount,
 		prometheus.GaugeValue,
 		float64(entity.DisabledCount),
+		alias,
 		entity.Component.Name,
 		"disabled",
 	)
@@ -238,6 +254,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			c.inFlowFiles5mCount,
 			prometheus.GaugeValue,
 			float64(snapshot.FlowFilesIn),
+			alias,
 			nodeID,
 			snapshot.Name,
 		)
@@ -245,6 +262,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			c.inBytes5mCount,
 			prometheus.GaugeValue,
 			float64(snapshot.BytesIn),
+			alias,
 			nodeID,
 			snapshot.Name,
 		)
@@ -252,6 +270,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			c.queuedFlowFilesCount,
 			prometheus.GaugeValue,
 			float64(snapshot.FlowFilesQueued),
+			alias,
 			nodeID,
 			snapshot.Name,
 		)
@@ -259,6 +278,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			c.queuedBytes,
 			prometheus.GaugeValue,
 			float64(snapshot.BytesQueued),
+			alias,
 			nodeID,
 			snapshot.Name,
 		)
@@ -266,6 +286,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			c.readBytes5mCount,
 			prometheus.GaugeValue,
 			float64(snapshot.BytesRead),
+			alias,
 			nodeID,
 			snapshot.Name,
 		)
@@ -273,6 +294,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			c.writtenBytes5mCount,
 			prometheus.GaugeValue,
 			float64(snapshot.BytesWritten),
+			alias,
 			nodeID,
 			snapshot.Name,
 		)
@@ -280,6 +302,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			c.outFlowFiles5mCount,
 			prometheus.GaugeValue,
 			float64(snapshot.FlowFilesOut),
+			alias,
 			nodeID,
 			snapshot.Name,
 		)
@@ -287,6 +310,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			c.outBytes5mCount,
 			prometheus.GaugeValue,
 			float64(snapshot.BytesOut),
+			alias,
 			nodeID,
 			snapshot.Name,
 		)
@@ -294,6 +318,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			c.transferredFlowFiles5mCount,
 			prometheus.GaugeValue,
 			float64(snapshot.FlowFilesTransferred),
+			alias,
 			nodeID,
 			snapshot.Name,
 		)
@@ -301,6 +326,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			c.transferredBytes5mCount,
 			prometheus.GaugeValue,
 			float64(snapshot.BytesTransferred),
+			alias,
 			nodeID,
 			snapshot.Name,
 		)
@@ -308,6 +334,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			c.receivedBytes5mCount,
 			prometheus.GaugeValue,
 			float64(snapshot.BytesReceived),
+			alias,
 			nodeID,
 			snapshot.Name,
 		)
@@ -315,6 +342,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			c.receivedFlowFiles5mCount,
 			prometheus.GaugeValue,
 			float64(snapshot.FlowFilesReceived),
+			alias,
 			nodeID,
 			snapshot.Name,
 		)
@@ -322,6 +350,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			c.sentBytes5mCount,
 			prometheus.GaugeValue,
 			float64(snapshot.BytesSent),
+			alias,
 			nodeID,
 			snapshot.Name,
 		)
@@ -329,6 +358,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			c.sentFlowFiles5mCount,
 			prometheus.GaugeValue,
 			float64(snapshot.FlowFilesSent),
+			alias,
 			nodeID,
 			snapshot.Name,
 		)
@@ -336,6 +366,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			c.activeThreadCount,
 			prometheus.GaugeValue,
 			float64(snapshot.ActiveThreadCount),
+			alias,
 			nodeID,
 			snapshot.Name,
 		)

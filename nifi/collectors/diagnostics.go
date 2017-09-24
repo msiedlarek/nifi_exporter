@@ -1,8 +1,10 @@
 package collectors
 
 import (
-	"github.com/prometheus/client_golang/prometheus"
+	"sync"
+
 	"github.com/msiedlarek/nifi_exporter/nifi/client"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type generalMetrics struct {
@@ -35,18 +37,20 @@ type storageMetrics struct {
 }
 
 type DiagnosticsCollector struct {
-	client *client.Client
+	nodes map[string]*client.Client
+
 	generalMetrics
 	jvmMetrics
 	storageMetrics
 }
 
-func NewDiagnosticsCollector(client *client.Client) *DiagnosticsCollector {
-	labels := []string{"node_id"}
+func NewDiagnosticsCollector(nodes map[string]*client.Client) *DiagnosticsCollector {
+	labels := []string{"alias", "node_id"}
 	jvmMetricsPrefix := MetricNamePrefix + "jvm_"
 	storageMetricsPrefix := MetricNamePrefix + "stor_"
 	return &DiagnosticsCollector{
-		client: client,
+		nodes: nodes,
+
 		generalMetrics: generalMetrics{
 			info: prometheus.NewDesc(
 				MetricNamePrefix+"info",
@@ -200,173 +204,203 @@ func (c *DiagnosticsCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *DiagnosticsCollector) Collect(ch chan<- prometheus.Metric) {
-	diagnostics, err := c.client.GetSystemDiagnostics(true, "")
-	if err != nil {
-		ch <- prometheus.NewInvalidMetric(c.generalMetrics.info, err)
-		return
+	var wg sync.WaitGroup
+	for alias, api := range c.nodes {
+		wg.Add(1)
+		go func(alias string, api *client.Client) {
+			defer wg.Done()
+
+			diagnostics, err := api.GetSystemDiagnostics(true, "")
+			if err != nil {
+				ch <- prometheus.NewInvalidMetric(c.generalMetrics.info, err)
+				return
+			}
+
+			nodes := make(map[string]*client.SystemDiagnosticsSnapshotDTO)
+			if len(diagnostics.NodeSnapshots) > 0 {
+				for i := range diagnostics.NodeSnapshots {
+					snapshot := &diagnostics.NodeSnapshots[i]
+					nodes[snapshot.NodeID] = &snapshot.Snapshot
+				}
+			} else if diagnostics.AggregateSnapshot != nil {
+				nodes[AggregateNodeID] = diagnostics.AggregateSnapshot
+			}
+
+			for nodeID, snapshot := range nodes {
+				ch <- prometheus.MustNewConstMetric(
+					c.generalMetrics.info,
+					prometheus.GaugeValue,
+					float64(1),
+					alias,
+					nodeID,
+					snapshot.VersionInfo.NiFiVersion,
+				)
+				ch <- prometheus.MustNewConstMetric(
+					c.generalMetrics.osInfo,
+					prometheus.GaugeValue,
+					float64(1),
+					alias,
+					nodeID,
+					snapshot.VersionInfo.OsName,
+					snapshot.VersionInfo.OsVersion,
+					snapshot.VersionInfo.OsArchitecture,
+				)
+
+				ch <- prometheus.MustNewConstMetric(
+					c.jvmMetrics.info,
+					prometheus.GaugeValue,
+					float64(1),
+					alias,
+					nodeID,
+					snapshot.VersionInfo.JavaVendor,
+					snapshot.VersionInfo.JavaVersion,
+				)
+				ch <- prometheus.MustNewConstMetric(
+					c.jvmMetrics.nonHeapBytes,
+					prometheus.GaugeValue,
+					float64(snapshot.TotalNonHeapBytes),
+					alias,
+					nodeID,
+				)
+				ch <- prometheus.MustNewConstMetric(
+					c.jvmMetrics.usedNonHeapBytes,
+					prometheus.GaugeValue,
+					float64(snapshot.UsedNonHeapBytes),
+					alias,
+					nodeID,
+				)
+				ch <- prometheus.MustNewConstMetric(
+					c.jvmMetrics.freeNonHeapBytes,
+					prometheus.GaugeValue,
+					float64(snapshot.FreeNonHeapBytes),
+					alias,
+					nodeID,
+				)
+				ch <- prometheus.MustNewConstMetric(
+					c.jvmMetrics.maxNonHeapBytes,
+					prometheus.GaugeValue,
+					float64(snapshot.MaxNonHeapBytes),
+					alias,
+					nodeID,
+				)
+				ch <- prometheus.MustNewConstMetric(
+					c.jvmMetrics.heapBytes,
+					prometheus.GaugeValue,
+					float64(snapshot.TotalHeapBytes),
+					alias,
+					nodeID,
+				)
+				ch <- prometheus.MustNewConstMetric(
+					c.jvmMetrics.usedHeapBytes,
+					prometheus.GaugeValue,
+					float64(snapshot.UsedHeapBytes),
+					alias,
+					nodeID,
+				)
+				ch <- prometheus.MustNewConstMetric(
+					c.jvmMetrics.freeHeapBytes,
+					prometheus.GaugeValue,
+					float64(snapshot.FreeHeapBytes),
+					alias,
+					nodeID,
+				)
+				ch <- prometheus.MustNewConstMetric(
+					c.jvmMetrics.maxHeapBytes,
+					prometheus.GaugeValue,
+					float64(snapshot.MaxHeapBytes),
+					alias,
+					nodeID,
+				)
+				ch <- prometheus.MustNewConstMetric(
+					c.jvmMetrics.availableProcessorCount,
+					prometheus.GaugeValue,
+					float64(snapshot.AvailableProcessors),
+					alias,
+					nodeID,
+				)
+				ch <- prometheus.MustNewConstMetric(
+					c.jvmMetrics.processorLoadAvg,
+					prometheus.GaugeValue,
+					float64(snapshot.ProcessorLoadAverage),
+					alias,
+					nodeID,
+				)
+				ch <- prometheus.MustNewConstMetric(
+					c.jvmMetrics.threadCount,
+					prometheus.GaugeValue,
+					float64(snapshot.TotalThreads),
+					alias,
+					nodeID,
+				)
+				ch <- prometheus.MustNewConstMetric(
+					c.jvmMetrics.daemonThreadCount,
+					prometheus.GaugeValue,
+					float64(snapshot.DaemonThreads),
+					alias,
+					nodeID,
+				)
+				for i := range snapshot.GarbageCollection {
+					stats := &snapshot.GarbageCollection[i]
+					ch <- prometheus.MustNewConstMetric(
+						c.jvmMetrics.gcCollectionTotal,
+						prometheus.CounterValue,
+						float64(stats.CollectionCount),
+						alias,
+						nodeID,
+						stats.Name,
+					)
+					ch <- prometheus.MustNewConstMetric(
+						c.jvmMetrics.gcCollectionTimeMsTotal,
+						prometheus.CounterValue,
+						float64(stats.CollectionMillis),
+						alias,
+						nodeID,
+						stats.Name,
+					)
+				}
+
+				c.collectStorageUsage(
+					ch,
+					alias,
+					nodeID,
+					"flow_file",
+					"default",
+					&snapshot.FlowFileRepositoryStorageUsage,
+				)
+				for i := range snapshot.ContentRepositoryStorageUsage {
+					usage := &snapshot.ContentRepositoryStorageUsage[i]
+					c.collectStorageUsage(
+						ch,
+						alias,
+						nodeID,
+						"content",
+						usage.Identifier,
+						usage,
+					)
+				}
+				for i := range snapshot.ProvenanceRepositoryStorageUsage {
+					usage := &snapshot.ProvenanceRepositoryStorageUsage[i]
+					c.collectStorageUsage(
+						ch,
+						alias,
+						nodeID,
+						"provenance",
+						usage.Identifier,
+						usage,
+					)
+				}
+			}
+		}(alias, api)
 	}
-
-	nodes := make(map[string]*client.SystemDiagnosticsSnapshotDTO)
-	if len(diagnostics.NodeSnapshots) > 0 {
-		for i := range diagnostics.NodeSnapshots {
-			snapshot := &diagnostics.NodeSnapshots[i]
-			nodes[snapshot.NodeID] = &snapshot.Snapshot
-		}
-	} else if diagnostics.AggregateSnapshot != nil {
-		nodes[AggregateNodeID] = diagnostics.AggregateSnapshot
-	}
-
-	for nodeID, snapshot := range nodes {
-		ch <- prometheus.MustNewConstMetric(
-			c.generalMetrics.info,
-			prometheus.GaugeValue,
-			float64(1),
-			nodeID,
-			snapshot.VersionInfo.NiFiVersion,
-		)
-		ch <- prometheus.MustNewConstMetric(
-			c.generalMetrics.osInfo,
-			prometheus.GaugeValue,
-			float64(1),
-			nodeID,
-			snapshot.VersionInfo.OsName,
-			snapshot.VersionInfo.OsVersion,
-			snapshot.VersionInfo.OsArchitecture,
-		)
-
-		ch <- prometheus.MustNewConstMetric(
-			c.jvmMetrics.info,
-			prometheus.GaugeValue,
-			float64(1),
-			nodeID,
-			snapshot.VersionInfo.JavaVendor,
-			snapshot.VersionInfo.JavaVersion,
-		)
-		ch <- prometheus.MustNewConstMetric(
-			c.jvmMetrics.nonHeapBytes,
-			prometheus.GaugeValue,
-			float64(snapshot.TotalNonHeapBytes),
-			nodeID,
-		)
-		ch <- prometheus.MustNewConstMetric(
-			c.jvmMetrics.usedNonHeapBytes,
-			prometheus.GaugeValue,
-			float64(snapshot.UsedNonHeapBytes),
-			nodeID,
-		)
-		ch <- prometheus.MustNewConstMetric(
-			c.jvmMetrics.freeNonHeapBytes,
-			prometheus.GaugeValue,
-			float64(snapshot.FreeNonHeapBytes),
-			nodeID,
-		)
-		ch <- prometheus.MustNewConstMetric(
-			c.jvmMetrics.maxNonHeapBytes,
-			prometheus.GaugeValue,
-			float64(snapshot.MaxNonHeapBytes),
-			nodeID,
-		)
-		ch <- prometheus.MustNewConstMetric(
-			c.jvmMetrics.heapBytes,
-			prometheus.GaugeValue,
-			float64(snapshot.TotalHeapBytes),
-			nodeID,
-		)
-		ch <- prometheus.MustNewConstMetric(
-			c.jvmMetrics.usedHeapBytes,
-			prometheus.GaugeValue,
-			float64(snapshot.UsedHeapBytes),
-			nodeID,
-		)
-		ch <- prometheus.MustNewConstMetric(
-			c.jvmMetrics.freeHeapBytes,
-			prometheus.GaugeValue,
-			float64(snapshot.FreeHeapBytes),
-			nodeID,
-		)
-		ch <- prometheus.MustNewConstMetric(
-			c.jvmMetrics.maxHeapBytes,
-			prometheus.GaugeValue,
-			float64(snapshot.MaxHeapBytes),
-			nodeID,
-		)
-		ch <- prometheus.MustNewConstMetric(
-			c.jvmMetrics.availableProcessorCount,
-			prometheus.GaugeValue,
-			float64(snapshot.AvailableProcessors),
-			nodeID,
-		)
-		ch <- prometheus.MustNewConstMetric(
-			c.jvmMetrics.processorLoadAvg,
-			prometheus.GaugeValue,
-			float64(snapshot.ProcessorLoadAverage),
-			nodeID,
-		)
-		ch <- prometheus.MustNewConstMetric(
-			c.jvmMetrics.threadCount,
-			prometheus.GaugeValue,
-			float64(snapshot.TotalThreads),
-			nodeID,
-		)
-		ch <- prometheus.MustNewConstMetric(
-			c.jvmMetrics.daemonThreadCount,
-			prometheus.GaugeValue,
-			float64(snapshot.DaemonThreads),
-			nodeID,
-		)
-		for i := range snapshot.GarbageCollection {
-			stats := &snapshot.GarbageCollection[i]
-			ch <- prometheus.MustNewConstMetric(
-				c.jvmMetrics.gcCollectionTotal,
-				prometheus.CounterValue,
-				float64(stats.CollectionCount),
-				nodeID,
-				stats.Name,
-			)
-			ch <- prometheus.MustNewConstMetric(
-				c.jvmMetrics.gcCollectionTimeMsTotal,
-				prometheus.CounterValue,
-				float64(stats.CollectionMillis),
-				nodeID,
-				stats.Name,
-			)
-		}
-
-		c.collectStorageUsage(
-			ch,
-			nodeID,
-			"flow_file",
-			"default",
-			&snapshot.FlowFileRepositoryStorageUsage,
-		)
-		for i := range snapshot.ContentRepositoryStorageUsage {
-			usage := &snapshot.ContentRepositoryStorageUsage[i]
-			c.collectStorageUsage(
-				ch,
-				nodeID,
-				"content",
-				usage.Identifier,
-				usage,
-			)
-		}
-		for i := range snapshot.ProvenanceRepositoryStorageUsage {
-			usage := &snapshot.ProvenanceRepositoryStorageUsage[i]
-			c.collectStorageUsage(
-				ch,
-				nodeID,
-				"provenance",
-				usage.Identifier,
-				usage,
-			)
-		}
-	}
+	wg.Wait()
 }
 
-func (c *DiagnosticsCollector) collectStorageUsage(ch chan<- prometheus.Metric, nodeID, storageType, location string, usage *client.StorageUsageDTO) {
+func (c *DiagnosticsCollector) collectStorageUsage(ch chan<- prometheus.Metric, alias, nodeID, storageType, location string, usage *client.StorageUsageDTO) {
 	ch <- prometheus.MustNewConstMetric(
 		c.storageMetrics.freeBytes,
 		prometheus.GaugeValue,
 		float64(usage.FreeSpaceBytes),
+		alias,
 		nodeID,
 		storageType,
 		location,
@@ -375,6 +409,7 @@ func (c *DiagnosticsCollector) collectStorageUsage(ch chan<- prometheus.Metric, 
 		c.storageMetrics.sizeBytes,
 		prometheus.GaugeValue,
 		float64(usage.TotalSpaceBytes),
+		alias,
 		nodeID,
 		storageType,
 		location,
@@ -383,6 +418,7 @@ func (c *DiagnosticsCollector) collectStorageUsage(ch chan<- prometheus.Metric, 
 		c.storageMetrics.usedBytes,
 		prometheus.GaugeValue,
 		float64(usage.UsedSpaceBytes),
+		alias,
 		nodeID,
 		storageType,
 		location,
