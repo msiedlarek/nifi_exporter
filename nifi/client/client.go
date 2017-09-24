@@ -12,7 +12,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/asn1"
+
 	"github.com/juju/errors"
+	log "github.com/sirupsen/logrus"
 )
 
 const tokenExpirationMargin = time.Minute
@@ -42,7 +48,7 @@ type jwtPayload struct {
 	Subject           string `json:"sub"`
 }
 
-func NewClient(baseURL, username, password string) *Client {
+func NewClient(baseURL, username, password, caCertificates string) (*Client, error) {
 	c := Client{
 		baseURL: strings.TrimRight(baseURL, "/") + "/nifi-api",
 		credentials: url.Values{
@@ -50,7 +56,30 @@ func NewClient(baseURL, username, password string) *Client {
 			"password": []string{password},
 		},
 	}
-	return &c
+	if caCertificates != "" {
+		certPool := x509.NewCertPool()
+		if ok := certPool.AppendCertsFromPEM([]byte(caCertificates)); !ok {
+			return nil, errors.New("Invalid CA certificates.")
+		}
+		for _, der := range certPool.Subjects() {
+			var rdn pkix.RDNSequence
+			if _, err := asn1.Unmarshal(der, &rdn); err != nil {
+				return nil, errors.Trace(err)
+			}
+			var name pkix.Name
+			name.FillFromRDNSequence(&rdn)
+			log.WithFields(log.Fields{
+				"commonName":   name.CommonName,
+				"organization": name.Organization,
+			}).Infof("Loaded CA certificate for %s: %s", baseURL, name.CommonName)
+		}
+		c.client.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{
+				RootCAs: certPool,
+			},
+		}
+	}
+	return &c, nil
 }
 
 func (c *Client) GetCounters(nodewise bool, clusterNodeId string) (*CountersDTO, error) {
@@ -166,6 +195,10 @@ func (c *Client) authenticate() error {
 	if c.tokenExpirationTimestamp > time.Now().Add(tokenExpirationMargin).Unix() {
 		return nil
 	}
+	log.WithFields(log.Fields{
+		"url":      c.baseURL,
+		"username": c.credentials.Get("username"),
+	}).Info("Authentication token has expired, reauthenticating...")
 
 	resp, err := c.client.PostForm(c.baseURL+"/access/token", c.credentials)
 	if err != nil {
@@ -193,6 +226,12 @@ func (c *Client) authenticate() error {
 
 		c.token = "Bearer " + body
 		atomic.StoreInt64(&c.tokenExpirationTimestamp, payload.ExpirationTime)
+
+		log.WithFields(log.Fields{
+			"url":             c.baseURL,
+			"username":        c.credentials.Get("username"),
+			"tokenExpiration": time.Unix(c.tokenExpirationTimestamp, 0).String(),
+		}).Info("Authentication successful.")
 		return nil
 	} else if resp.StatusCode == http.StatusUnauthorized {
 		return errors.Unauthorizedf(body)
