@@ -116,6 +116,49 @@ func (c *Client) GetProcessGroups(parentID string) ([]ProcessGroupEntity, error)
 	return entity.ProcessGroups, nil
 }
 
+// func (c *Client) GetConnections(parentID string) ([]ConnectionEntity, error) {
+// 	var entity ConnectionsEntity
+// 	if err := c.request("/process-groups/"+connectionID+"/connections", nil, &entity); err != nil {
+// 		return nil, errors.Trace(err)
+// 	}
+// 	return entity.Connections, nil
+// }
+
+// GetConnections traverses the process group hierarchy returning information about
+// all connections
+func (c *Client) GetConnections(parentID string) ([]ConnectionEntity, error) {
+	var entity ConnectionsEntity
+	if err := c.getDeepConnections(parentID, &entity); err != nil {
+		return nil, err
+	}
+	return entity.Connections, nil
+
+}
+
+func (c *Client) getDeepConnections(parentID string, connectionsEntity *ConnectionsEntity) error {
+	var entity ConnectionsEntity
+
+	// Get the connections for the current process group
+	if err := c.request("/process-groups/"+parentID+"/connections", nil, &entity); err != nil {
+		return errors.Trace(err)
+	}
+
+	// And the child process groups
+
+	var pgentity ProcessGroupsEntity
+	if err := c.request("/process-groups/"+parentID+"/process-groups", nil, &pgentity); err != nil {
+		return errors.Trace(err)
+	}
+
+	for _, pg := range pgentity.ProcessGroups {
+		if err := c.getDeepConnections(pg.ID, connectionsEntity); err != nil {
+			return err
+		}
+	}
+	connectionsEntity.Connections = append(connectionsEntity.Connections, entity.Connections...)
+	return nil
+}
+
 // GetDeepProcessGroups traverses the process group hierarchy returning information about
 // this and all child process groups
 func (c *Client) GetDeepProcessGroups(parentID string) ([]ProcessGroupEntity, error) {
