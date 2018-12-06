@@ -116,14 +116,6 @@ func (c *Client) GetProcessGroups(parentID string) ([]ProcessGroupEntity, error)
 	return entity.ProcessGroups, nil
 }
 
-// func (c *Client) GetConnections(parentID string) ([]ConnectionEntity, error) {
-// 	var entity ConnectionsEntity
-// 	if err := c.request("/process-groups/"+connectionID+"/connections", nil, &entity); err != nil {
-// 		return nil, errors.Trace(err)
-// 	}
-// 	return entity.Connections, nil
-// }
-
 // GetConnections traverses the process group hierarchy returning information about
 // all connections
 func (c *Client) GetConnections(parentID string) ([]ConnectionEntity, error) {
