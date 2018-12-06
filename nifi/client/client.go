@@ -116,6 +116,32 @@ func (c *Client) GetProcessGroups(parentID string) ([]ProcessGroupEntity, error)
 	return entity.ProcessGroups, nil
 }
 
+// GetDeepProcessGroups traverses the process group hierarchy returning information about
+// this and all child process groups
+func (c *Client) GetDeepProcessGroups(parentID string) ([]ProcessGroupEntity, error) {
+	var entity ProcessGroupsEntity
+	if err := c.getDeepProcessGroups(parentID, &entity); err != nil {
+		return nil, err
+	}
+	return entity.ProcessGroups, nil
+
+}
+
+func (c *Client) getDeepProcessGroups(parentID string, groupsEntity *ProcessGroupsEntity) error {
+	var entity ProcessGroupsEntity
+	if err := c.request("/process-groups/"+parentID+"/process-groups", nil, &entity); err != nil {
+		return errors.Trace(err)
+	}
+
+	for _, pg := range entity.ProcessGroups {
+		if err := c.getDeepProcessGroups(pg.ID, groupsEntity); err != nil {
+			return err
+		}
+	}
+	groupsEntity.ProcessGroups = append(groupsEntity.ProcessGroups, entity.ProcessGroups...)
+	return nil
+}
+
 func (c *Client) GetSystemDiagnostics(nodewise bool, clusterNodeId string) (*SystemDiagnosticsDTO, error) {
 	query := url.Values{}
 	if nodewise {
@@ -141,6 +167,7 @@ func (c *Client) request(path string, query url.Values, responseEntity interface
 	}
 
 	reqURL := c.baseURL + path
+	log.WithField("url", reqURL).Info("Requesting api resource......")
 	if query != nil && len(query) > 0 {
 		reqURL += "?" + query.Encode()
 	}

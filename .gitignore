@@ -3,3 +3,4 @@
 /config.yml
 /nifi_exporter
 /*.tar.gz
+/debug
