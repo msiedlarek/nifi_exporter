@@ -163,6 +163,15 @@ nifi_jvm_used_non_heap_bytes{env="testing",node_id="aggregate"} 1.9291444e+08
 # HELP nifi_os_info Operating system version info.
 # TYPE nifi_os_info gauge
 nifi_os_info{arch="amd64",env="testing",name="Linux",node_id="aggregate",version="4.14.72-73.55.amzn2.x86_64"} 1
+# HELP nifi_conn_flow_files_queued The number of FlowFiles that are currently queued in the connection
+# TYPE nifi_conn_flow_files_queued gauge
+nifi_conn_flow_files_queued{connection_id="026073af-c1c7-3d0e-2b43-e8baf6bb875b",connection_name="success",destination_name="in",env="testing",group_id="57b9c87e-7ee2-3cf1-2a76-5d75762bb2dd",node_id="aggregate",source_name="GenerateFlowFile"} 0
+nifi_conn_flow_files_queued{connection_id="06e8674b-a9a2-300a-5fea-3bcb312a7a0e",connection_name="failure",destination_name="fail5",env="testing",group_id="053742a0-5d93-379d-8232-ff6e6c21794d",node_id="aggregate",source_name="ExecuteSQL"} 4
+nifi_conn_flow_files_queued{connection_id="0818d0fd-9d0f-36b4-db68-596dfe02569e",connection_name="success",destination_name="out",env="testing",group_id="48f00c1b-c9c7-30cf-e3f8-52f0745f3dfd",node_id="aggregate",source_name="PutDistributedMapCache"} 0
+nifi_conn_flow_files_queued{connection_id="0bd6ab8a-29f8-37df-b345-16bdcf1abb9a",connection_name="success",destination_name="ExecuteScript",env="testing",group_id="263a63da-e085-3f02-1818-f5dfaa5504f0",node_id="aggregate",source_name="Set Credentials & Properties"} 0
+nifi_conn_flow_files_queued{connection_id="134df201-97bf-3eed-f937-445c48af300d",connection_name="splits",destination_name="ExtractText",env="testing",group_id="d99c18ca-e627-3085-7280-3aabf4c44eba",node_id="aggregate",source_name="SplitText"} 0
+nifi_conn_flow_files_queued{connection_id="16122638-c888-3192-a3f2-c6578fa7bced",connection_name="Response",destination_name="RouteOnContent",env="testing",group_id="053742a0-5d93-379d-8232-ff6e6c21794d",node_id="aggregate",source_name="InvokeHTTP"} 0
+nifi_conn_flow_files_queued{connection_id="1d681a65-c462-30eb-0f17-c56423642902",connection_name="No Retry, Failure",destination_name="UpdateAttribute",env="testing",group_id="053742a0-5d93-379d-8232-ff6e6c21794d",node_id="aggregate",source_name="InvokeHTTP"} 0
 # HELP nifi_pg_active_thread_count The active thread count for this process group.
 # TYPE nifi_pg_active_thread_count gauge
 nifi_pg_active_thread_count{env="testing",group="my_processor_group",node_id="aggregate"} 0
