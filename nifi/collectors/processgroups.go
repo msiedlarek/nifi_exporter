@@ -5,8 +5,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const rootProcessGroupID = "root"
-
 type ProcessGroupsCollector struct {
 	api *client.Client
 
@@ -164,7 +162,7 @@ func (c *ProcessGroupsCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *ProcessGroupsCollector) Collect(ch chan<- prometheus.Metric) {
-	entities, err := c.api.GetProcessGroups(rootProcessGroupID)
+	entities, err := c.api.GetDeepProcessGroups(rootProcessGroupID)
 	if err != nil {
 		ch <- prometheus.NewInvalidMetric(c.componentCount, err)
 		return

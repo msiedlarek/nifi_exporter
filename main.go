@@ -117,6 +117,9 @@ func start(config *Configuration) error {
 		if err := prometheus.DefaultRegisterer.Register(collectors.NewProcessGroupsCollector(api, node.Labels)); err != nil {
 			return errors.Annotate(err, "Couldn't register process groups collector.")
 		}
+		if err := prometheus.DefaultRegisterer.Register(collectors.NewConnectionsCollector(api, node.Labels)); err != nil {
+			return errors.Annotate(err, "Couldn't register connections collector.")
+		}
 	}
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {

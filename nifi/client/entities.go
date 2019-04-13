@@ -414,6 +414,117 @@ type ProcessGroupsEntity struct {
 	ProcessGroups []ProcessGroupEntity `json:"processGroups"`
 }
 
+// ConnectionEndPointDTO represents a connection's source and/or destination
+type ConnectionEndPointDTO struct {
+	//The ID
+	ID string `json:"id"`
+	// The type
+	Type string `json:"type"`
+	// The group ID
+	GroupID string `json:"groupId"`
+	// The name
+	Name string `json:"name"`
+	//Is this connection running?
+	Running bool `json:"running"`
+	// User comments on this connection
+	Comments string `json:"comments"`
+}
+
+// ConnectionDTO is the connection component
+type ConnectionDTO struct {
+	// The id of the component.
+	ID string `json:"id"`
+	// The id of parent process group of this component if applicable.
+	ParentGroupID string `json:"parentGroupId"`
+
+	// The source of the connection
+	Source ConnectionEndPointDTO `json:"source"`
+	// The destination of the connection
+	Destination ConnectionEndPointDTO `json:"destination"`
+	// The Name
+	Name string `json:"name"`
+	// The label Index
+	LabelIndex int `json:"labelIndex"`
+	// The zindex of this connection
+	ZIndex int `json:"zIndex"`
+	// Valid relationships for this connection
+	SelectedRelationships []string `json:"selectedRelationships"`
+	// Potential relationships for this connection
+	AvailableRelationships []string `json:"availableRelationships"`
+	// Threshold for back pressure objects
+	BackPressureObjectThreshold int `json:"backPressureObjectThreshold"`
+	// Threshold for backpressure size
+	BackPressureDataSizeThreshold string `json:"backPressureDataSizeThreshold"`
+	// When to the flows
+	FlowFileExpiration string `json:"flowFileExpiration"`
+	// The bends in the connection layout
+	Bends []PositionDTO `json:"bends"`
+	// The comparators used to prioritize the queue
+	Prioritizers []string `json:"prioritizers"`
+}
+
+// ConnectionStatusDTO represents the status of a connection
+type ConnectionStatusDTO struct {
+	// The ID of the Connection
+	ID string `json:"id"`
+	// The GroupID of the Connection
+	GroupID string `json:"groupId"`
+	// The name of the Connection
+	Name string `json:"name"`
+	// The time the status for the process group was last refreshed.
+	StatsLastRefreshed string `json:"statsLastRefreshed"`
+	SourceID           string `json:"sourceId"`
+	SourceName         string `json:"sourceName"`
+	DestinationID      string `json:"destinationId"`
+	DestinationName    string `json:"destinationName"`
+
+	// The aggregate status of all nodes in the cluster
+	AggregateSnapshot *ConnectionStatusSnapshotDTO `json:"aggregateSnapshot"`
+	// The status reported by each node in the cluster. If the NiFi instance is a standalone instance,
+	// rather than a clustered instance, this value may be null.
+	NodeSnapshots []NodeProcessGroupStatusSnapshotDTO `json:"nodeSnapshots"`
+}
+
+// ConnectionEntity represents a NiFi connection
+type ConnectionEntity struct {
+	// The revision for this request/response. The revision is required for any mutable flow requests and
+	// is included in all responses.
+	Revision RevisionDTO `json:"revision"`
+	// The id of the component.
+	ID string `json:"id"`
+	// The URI for futures requests to the component.
+	URI string `json:"uri"`
+	// The permissions for this component.
+	Permissions PermissionsDTO `json:"permissions"`
+	// The Connection.
+	Component ConnectionDTO `json:"component"`
+	// The status of the process group.
+	Status ConnectionStatusDTO `json:"status"`
+	// The bends in the connection layout
+	Bends []PositionDTO `json:"bends"`
+
+	// The label Index
+	LabelIndex int `json:"labelIndex"`
+	// The zindex of this connection
+	ZIndex int `json:"zIndex"`
+	// Connection source id
+	SourceID string `json:"sourceId"`
+	// Connection source group id
+	SourceGroupID string `json:"sourceGroupId"`
+	// Connection source type
+	SourceType string `json:"sourceType"`
+	// Connection destination id
+	DestinationID string `json:"destinationId"`
+	// Connection destination group id
+	DestinationGroupID string `json:"destinationGroupId"`
+	// Connection destination type
+	DestinationType string `json:"destinationType"`
+}
+
+type ConnectionsEntity struct {
+	Connections []ConnectionEntity `json:"connections"`
+}
+
 type CounterDTO struct {
 	// The id of the counter.
 	ID string `json:"id"`
