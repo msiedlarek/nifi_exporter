@@ -248,5 +248,5 @@ nifi_stor_used_bytes{env="testing",location="default",node_id="aggregate",type="
 ## Building
 
 Set up a [golang environment](https://golang.org/doc/install)
-Checkout this repository to `$GOPATH/src/github.com/msiedlarek/nifi_exporter`
+Checkout this repository to `$GOPATH/src/github.com/wehkamp/nifi_exporter`
 From the root of this repository run `go build`

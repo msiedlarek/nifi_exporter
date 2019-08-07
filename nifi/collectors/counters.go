@@ -2,7 +2,7 @@ package collectors
 
 import (
 	"github.com/juju/errors"
-	"github.com/msiedlarek/nifi_exporter/nifi/client"
+	"github.com/wehkamp/nifi_exporter/nifi/client"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
