@@ -30,111 +30,112 @@ type ProcessGroupsCollector struct {
 
 func NewProcessGroupsCollector(api *client.Client, labels map[string]string) *ProcessGroupsCollector {
 	prefix := MetricNamePrefix + "pg_"
-	statLabels := []string{"node_id", "group"}
+	//statLabels := []string{"node_id", "group"}
+	statLabelsId := []string{"node_id", "group", "entity_id"}
 	return &ProcessGroupsCollector{
 		api: api,
 
 		bulletin5mCount: prometheus.NewDesc(
 			prefix+"bulletin_5m_count",
 			"Number of bulletins posted during last 5 minutes.",
-			[]string{"group", "level"},
+			[]string{"group", "level", "entity_id"},
 			labels,
 		),
 		componentCount: prometheus.NewDesc(
 			prefix+"component_count",
 			"The number of components in this process group.",
-			[]string{"group", "status"},
+			[]string{"group", "status", "entity_id"},
 			labels,
 		),
 
 		inFlowFiles5mCount: prometheus.NewDesc(
 			prefix+"in_flow_files_5m_count",
 			"The number of FlowFiles that have come into this ProcessGroup in the last 5 minutes",
-			statLabels,
+			statLabelsId,
 			labels,
 		),
 		inBytes5mCount: prometheus.NewDesc(
 			prefix+"in_bytes_5m_count",
 			"The number of bytes that have come into this ProcessGroup in the last 5 minutes",
-			statLabels,
+			statLabelsId,
 			labels,
 		),
 		queuedFlowFilesCount: prometheus.NewDesc(
 			prefix+"queued_flow_files_count",
 			"The number of FlowFiles that are queued up in this ProcessGroup right now",
-			statLabels,
+			statLabelsId,
 			labels,
 		),
 		queuedBytes: prometheus.NewDesc(
 			prefix+"queued_bytes",
 			"The number of bytes that are queued up in this ProcessGroup right now",
-			statLabels,
+			statLabelsId,
 			labels,
 		),
 		readBytes5mCount: prometheus.NewDesc(
 			prefix+"read_bytes_5m_count",
 			"The number of bytes read by components in this ProcessGroup in the last 5 minutes",
-			statLabels,
+			statLabelsId,
 			labels,
 		),
 		writtenBytes5mCount: prometheus.NewDesc(
 			prefix+"written_bytes_5m_count",
 			"The number of bytes written by components in this ProcessGroup in the last 5 minutes",
-			statLabels,
+			statLabelsId,
 			labels,
 		),
 		outFlowFiles5mCount: prometheus.NewDesc(
 			prefix+"out_flow_files_5m_count",
 			"The number of FlowFiles transferred out of this ProcessGroup in the last 5 minutes",
-			statLabels,
+			statLabelsId,
 			labels,
 		),
 		outBytes5mCount: prometheus.NewDesc(
 			prefix+"out_bytes_5m_count",
 			"The number of bytes transferred out of this ProcessGroup in the last 5 minutes",
-			statLabels,
+			statLabelsId,
 			labels,
 		),
 		transferredFlowFiles5mCount: prometheus.NewDesc(
 			prefix+"transferred_flow_files_5m_count",
 			"The number of FlowFiles transferred in this ProcessGroup in the last 5 minutes",
-			statLabels,
+			statLabelsId,
 			labels,
 		),
 		transferredBytes5mCount: prometheus.NewDesc(
 			prefix+"transferred_bytes_5m_count",
 			"The number of bytes transferred in this ProcessGroup in the last 5 minutes",
-			statLabels,
+			statLabelsId,
 			labels,
 		),
 		receivedBytes5mCount: prometheus.NewDesc(
 			prefix+"received_bytes_5m_count",
 			"The number of bytes received from external sources by components within this ProcessGroup in the last 5 minutes",
-			statLabels,
+			statLabelsId,
 			labels,
 		),
 		receivedFlowFiles5mCount: prometheus.NewDesc(
 			prefix+"received_flow_files_5m_count",
 			"The number of FlowFiles received from external sources by components within this ProcessGroup in the last 5 minutes",
-			statLabels,
+			statLabelsId,
 			labels,
 		),
 		sentBytes5mCount: prometheus.NewDesc(
 			prefix+"sent_bytes_5m_count",
 			"The number of bytes sent to an external sink by components within this ProcessGroup in the last 5 minutes",
-			statLabels,
+			statLabelsId,
 			labels,
 		),
 		sentFlowFiles5mCount: prometheus.NewDesc(
 			prefix+"sent_flow_files_5m_count",
 			"The number of FlowFiles sent to an external sink by components within this ProcessGroup in the last 5 minutes",
-			statLabels,
+			statLabelsId,
 			labels,
 		),
 		activeThreadCount: prometheus.NewDesc(
 			prefix+"active_thread_count",
 			"The active thread count for this process group.",
-			statLabels,
+			statLabelsId,
 			labels,
 		),
 	}
@@ -182,6 +183,8 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 	for i := range entity.Bulletins {
 		bulletinCount[entity.Bulletins[i].Bulletin.Level]++
 	}
+
+
 	for level, count := range bulletinCount {
 		ch <- prometheus.MustNewConstMetric(
 			c.bulletin5mCount,
@@ -189,6 +192,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			float64(count),
 			entity.Component.Name,
 			level,
+			entity.Component.ID,
 		)
 	}
 
@@ -208,6 +212,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 		float64(entity.RunningCount),
 		entity.Component.Name,
 		"running",
+		entity.Component.ID,
 	)
 	ch <- prometheus.MustNewConstMetric(
 		c.componentCount,
@@ -215,6 +220,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 		float64(entity.StoppedCount),
 		entity.Component.Name,
 		"stopped",
+		entity.Component.ID,
 	)
 	ch <- prometheus.MustNewConstMetric(
 		c.componentCount,
@@ -222,6 +228,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 		float64(entity.InvalidCount),
 		entity.Component.Name,
 		"invalid",
+		entity.Component.ID,
 	)
 	ch <- prometheus.MustNewConstMetric(
 		c.componentCount,
@@ -229,6 +236,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 		float64(entity.DisabledCount),
 		entity.Component.Name,
 		"disabled",
+		entity.Component.ID,
 	)
 
 	for nodeID, snapshot := range nodes {
@@ -238,6 +246,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			float64(snapshot.FlowFilesIn),
 			nodeID,
 			snapshot.Name,
+			entity.Component.ID,
 		)
 		ch <- prometheus.MustNewConstMetric(
 			c.inBytes5mCount,
@@ -245,6 +254,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			float64(snapshot.BytesIn),
 			nodeID,
 			snapshot.Name,
+			entity.Component.ID,
 		)
 		ch <- prometheus.MustNewConstMetric(
 			c.queuedFlowFilesCount,
@@ -252,6 +262,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			float64(snapshot.FlowFilesQueued),
 			nodeID,
 			snapshot.Name,
+			entity.Component.ID,
 		)
 		ch <- prometheus.MustNewConstMetric(
 			c.queuedBytes,
@@ -259,6 +270,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			float64(snapshot.BytesQueued),
 			nodeID,
 			snapshot.Name,
+			entity.Component.ID,
 		)
 		ch <- prometheus.MustNewConstMetric(
 			c.readBytes5mCount,
@@ -266,6 +278,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			float64(snapshot.BytesRead),
 			nodeID,
 			snapshot.Name,
+			entity.Component.ID,
 		)
 		ch <- prometheus.MustNewConstMetric(
 			c.writtenBytes5mCount,
@@ -273,6 +286,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			float64(snapshot.BytesWritten),
 			nodeID,
 			snapshot.Name,
+			entity.Component.ID,
 		)
 		ch <- prometheus.MustNewConstMetric(
 			c.outFlowFiles5mCount,
@@ -280,6 +294,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			float64(snapshot.FlowFilesOut),
 			nodeID,
 			snapshot.Name,
+			entity.Component.ID,
 		)
 		ch <- prometheus.MustNewConstMetric(
 			c.outBytes5mCount,
@@ -287,6 +302,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			float64(snapshot.BytesOut),
 			nodeID,
 			snapshot.Name,
+			entity.Component.ID,
 		)
 		ch <- prometheus.MustNewConstMetric(
 			c.transferredFlowFiles5mCount,
@@ -294,6 +310,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			float64(snapshot.FlowFilesTransferred),
 			nodeID,
 			snapshot.Name,
+			entity.Component.ID,
 		)
 		ch <- prometheus.MustNewConstMetric(
 			c.transferredBytes5mCount,
@@ -301,6 +318,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			float64(snapshot.BytesTransferred),
 			nodeID,
 			snapshot.Name,
+			entity.Component.ID,
 		)
 		ch <- prometheus.MustNewConstMetric(
 			c.receivedBytes5mCount,
@@ -308,6 +326,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			float64(snapshot.BytesReceived),
 			nodeID,
 			snapshot.Name,
+			entity.Component.ID,
 		)
 		ch <- prometheus.MustNewConstMetric(
 			c.receivedFlowFiles5mCount,
@@ -315,6 +334,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			float64(snapshot.FlowFilesReceived),
 			nodeID,
 			snapshot.Name,
+			entity.Component.ID,
 		)
 		ch <- prometheus.MustNewConstMetric(
 			c.sentBytes5mCount,
@@ -322,6 +342,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			float64(snapshot.BytesSent),
 			nodeID,
 			snapshot.Name,
+			entity.Component.ID,
 		)
 		ch <- prometheus.MustNewConstMetric(
 			c.sentFlowFiles5mCount,
@@ -329,6 +350,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			float64(snapshot.FlowFilesSent),
 			nodeID,
 			snapshot.Name,
+			entity.Component.ID,
 		)
 		ch <- prometheus.MustNewConstMetric(
 			c.activeThreadCount,
@@ -336,6 +358,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			float64(snapshot.ActiveThreadCount),
 			nodeID,
 			snapshot.Name,
+			entity.Component.ID,
 		)
 	}
 }
