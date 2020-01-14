@@ -30,8 +30,7 @@ type ProcessGroupsCollector struct {
 
 func NewProcessGroupsCollector(api *client.Client, labels map[string]string) *ProcessGroupsCollector {
 	prefix := MetricNamePrefix + "pg_"
-	//statLabels := []string{"node_id", "group"}
-	statLabelsId := []string{"node_id", "group", "entity_id"}
+	statLabels := []string{"node_id", "group", "entity_id"}
 	return &ProcessGroupsCollector{
 		api: api,
 
@@ -51,91 +50,91 @@ func NewProcessGroupsCollector(api *client.Client, labels map[string]string) *Pr
 		inFlowFiles5mCount: prometheus.NewDesc(
 			prefix+"in_flow_files_5m_count",
 			"The number of FlowFiles that have come into this ProcessGroup in the last 5 minutes",
-			statLabelsId,
+			statLabels,
 			labels,
 		),
 		inBytes5mCount: prometheus.NewDesc(
 			prefix+"in_bytes_5m_count",
 			"The number of bytes that have come into this ProcessGroup in the last 5 minutes",
-			statLabelsId,
+			statLabels,
 			labels,
 		),
 		queuedFlowFilesCount: prometheus.NewDesc(
 			prefix+"queued_flow_files_count",
 			"The number of FlowFiles that are queued up in this ProcessGroup right now",
-			statLabelsId,
+			statLabels,
 			labels,
 		),
 		queuedBytes: prometheus.NewDesc(
 			prefix+"queued_bytes",
 			"The number of bytes that are queued up in this ProcessGroup right now",
-			statLabelsId,
+			statLabels,
 			labels,
 		),
 		readBytes5mCount: prometheus.NewDesc(
 			prefix+"read_bytes_5m_count",
 			"The number of bytes read by components in this ProcessGroup in the last 5 minutes",
-			statLabelsId,
+			statLabels,
 			labels,
 		),
 		writtenBytes5mCount: prometheus.NewDesc(
 			prefix+"written_bytes_5m_count",
 			"The number of bytes written by components in this ProcessGroup in the last 5 minutes",
-			statLabelsId,
+			statLabels,
 			labels,
 		),
 		outFlowFiles5mCount: prometheus.NewDesc(
 			prefix+"out_flow_files_5m_count",
 			"The number of FlowFiles transferred out of this ProcessGroup in the last 5 minutes",
-			statLabelsId,
+			statLabels,
 			labels,
 		),
 		outBytes5mCount: prometheus.NewDesc(
 			prefix+"out_bytes_5m_count",
 			"The number of bytes transferred out of this ProcessGroup in the last 5 minutes",
-			statLabelsId,
+			statLabels,
 			labels,
 		),
 		transferredFlowFiles5mCount: prometheus.NewDesc(
 			prefix+"transferred_flow_files_5m_count",
 			"The number of FlowFiles transferred in this ProcessGroup in the last 5 minutes",
-			statLabelsId,
+			statLabels,
 			labels,
 		),
 		transferredBytes5mCount: prometheus.NewDesc(
 			prefix+"transferred_bytes_5m_count",
 			"The number of bytes transferred in this ProcessGroup in the last 5 minutes",
-			statLabelsId,
+			statLabels,
 			labels,
 		),
 		receivedBytes5mCount: prometheus.NewDesc(
 			prefix+"received_bytes_5m_count",
 			"The number of bytes received from external sources by components within this ProcessGroup in the last 5 minutes",
-			statLabelsId,
+			statLabels,
 			labels,
 		),
 		receivedFlowFiles5mCount: prometheus.NewDesc(
 			prefix+"received_flow_files_5m_count",
 			"The number of FlowFiles received from external sources by components within this ProcessGroup in the last 5 minutes",
-			statLabelsId,
+			statLabels,
 			labels,
 		),
 		sentBytes5mCount: prometheus.NewDesc(
 			prefix+"sent_bytes_5m_count",
 			"The number of bytes sent to an external sink by components within this ProcessGroup in the last 5 minutes",
-			statLabelsId,
+			statLabels,
 			labels,
 		),
 		sentFlowFiles5mCount: prometheus.NewDesc(
 			prefix+"sent_flow_files_5m_count",
 			"The number of FlowFiles sent to an external sink by components within this ProcessGroup in the last 5 minutes",
-			statLabelsId,
+			statLabels,
 			labels,
 		),
 		activeThreadCount: prometheus.NewDesc(
 			prefix+"active_thread_count",
 			"The active thread count for this process group.",
-			statLabelsId,
+			statLabels,
 			labels,
 		),
 	}
