@@ -183,7 +183,6 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 		bulletinCount[entity.Bulletins[i].Bulletin.Level]++
 	}
 
-
 	for level, count := range bulletinCount {
 		ch <- prometheus.MustNewConstMetric(
 			c.bulletin5mCount,
