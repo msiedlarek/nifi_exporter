@@ -1,6 +1,4 @@
 .DS_Store
-.idea
 /config.yml
 /nifi_exporter
-/*.tar.gz
-/debug
+/dist
