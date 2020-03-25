@@ -30,20 +30,20 @@ type ProcessGroupsCollector struct {
 
 func NewProcessGroupsCollector(api *client.Client, labels map[string]string) *ProcessGroupsCollector {
 	prefix := MetricNamePrefix + "pg_"
-	statLabels := []string{"node_id", "group"}
+	statLabels := []string{"node_id", "group", "entity_id"}
 	return &ProcessGroupsCollector{
 		api: api,
 
 		bulletin5mCount: prometheus.NewDesc(
 			prefix+"bulletin_5m_count",
 			"Number of bulletins posted during last 5 minutes.",
-			[]string{"group", "level"},
+			[]string{"group", "level", "entity_id"},
 			labels,
 		),
 		componentCount: prometheus.NewDesc(
 			prefix+"component_count",
 			"The number of components in this process group.",
-			[]string{"group", "status"},
+			[]string{"group", "status", "entity_id"},
 			labels,
 		),
 
@@ -182,6 +182,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 	for i := range entity.Bulletins {
 		bulletinCount[entity.Bulletins[i].Bulletin.Level]++
 	}
+
 	for level, count := range bulletinCount {
 		ch <- prometheus.MustNewConstMetric(
 			c.bulletin5mCount,
@@ -189,6 +190,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			float64(count),
 			entity.Component.Name,
 			level,
+			entity.Component.ID,
 		)
 	}
 
@@ -208,6 +210,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 		float64(entity.RunningCount),
 		entity.Component.Name,
 		"running",
+		entity.Component.ID,
 	)
 	ch <- prometheus.MustNewConstMetric(
 		c.componentCount,
@@ -215,6 +218,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 		float64(entity.StoppedCount),
 		entity.Component.Name,
 		"stopped",
+		entity.Component.ID,
 	)
 	ch <- prometheus.MustNewConstMetric(
 		c.componentCount,
@@ -222,6 +226,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 		float64(entity.InvalidCount),
 		entity.Component.Name,
 		"invalid",
+		entity.Component.ID,
 	)
 	ch <- prometheus.MustNewConstMetric(
 		c.componentCount,
@@ -229,6 +234,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 		float64(entity.DisabledCount),
 		entity.Component.Name,
 		"disabled",
+		entity.Component.ID,
 	)
 
 	for nodeID, snapshot := range nodes {
@@ -238,6 +244,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			float64(snapshot.FlowFilesIn),
 			nodeID,
 			snapshot.Name,
+			entity.Component.ID,
 		)
 		ch <- prometheus.MustNewConstMetric(
 			c.inBytes5mCount,
@@ -245,6 +252,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			float64(snapshot.BytesIn),
 			nodeID,
 			snapshot.Name,
+			entity.Component.ID,
 		)
 		ch <- prometheus.MustNewConstMetric(
 			c.queuedFlowFilesCount,
@@ -252,6 +260,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			float64(snapshot.FlowFilesQueued),
 			nodeID,
 			snapshot.Name,
+			entity.Component.ID,
 		)
 		ch <- prometheus.MustNewConstMetric(
 			c.queuedBytes,
@@ -259,6 +268,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			float64(snapshot.BytesQueued),
 			nodeID,
 			snapshot.Name,
+			entity.Component.ID,
 		)
 		ch <- prometheus.MustNewConstMetric(
 			c.readBytes5mCount,
@@ -266,6 +276,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			float64(snapshot.BytesRead),
 			nodeID,
 			snapshot.Name,
+			entity.Component.ID,
 		)
 		ch <- prometheus.MustNewConstMetric(
 			c.writtenBytes5mCount,
@@ -273,6 +284,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			float64(snapshot.BytesWritten),
 			nodeID,
 			snapshot.Name,
+			entity.Component.ID,
 		)
 		ch <- prometheus.MustNewConstMetric(
 			c.outFlowFiles5mCount,
@@ -280,6 +292,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			float64(snapshot.FlowFilesOut),
 			nodeID,
 			snapshot.Name,
+			entity.Component.ID,
 		)
 		ch <- prometheus.MustNewConstMetric(
 			c.outBytes5mCount,
@@ -287,6 +300,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			float64(snapshot.BytesOut),
 			nodeID,
 			snapshot.Name,
+			entity.Component.ID,
 		)
 		ch <- prometheus.MustNewConstMetric(
 			c.transferredFlowFiles5mCount,
@@ -294,6 +308,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			float64(snapshot.FlowFilesTransferred),
 			nodeID,
 			snapshot.Name,
+			entity.Component.ID,
 		)
 		ch <- prometheus.MustNewConstMetric(
 			c.transferredBytes5mCount,
@@ -301,6 +316,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			float64(snapshot.BytesTransferred),
 			nodeID,
 			snapshot.Name,
+			entity.Component.ID,
 		)
 		ch <- prometheus.MustNewConstMetric(
 			c.receivedBytes5mCount,
@@ -308,6 +324,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			float64(snapshot.BytesReceived),
 			nodeID,
 			snapshot.Name,
+			entity.Component.ID,
 		)
 		ch <- prometheus.MustNewConstMetric(
 			c.receivedFlowFiles5mCount,
@@ -315,6 +332,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			float64(snapshot.FlowFilesReceived),
 			nodeID,
 			snapshot.Name,
+			entity.Component.ID,
 		)
 		ch <- prometheus.MustNewConstMetric(
 			c.sentBytes5mCount,
@@ -322,6 +340,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			float64(snapshot.BytesSent),
 			nodeID,
 			snapshot.Name,
+			entity.Component.ID,
 		)
 		ch <- prometheus.MustNewConstMetric(
 			c.sentFlowFiles5mCount,
@@ -329,6 +348,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			float64(snapshot.FlowFilesSent),
 			nodeID,
 			snapshot.Name,
+			entity.Component.ID,
 		)
 		ch <- prometheus.MustNewConstMetric(
 			c.activeThreadCount,
@@ -336,6 +356,7 @@ func (c *ProcessGroupsCollector) collect(ch chan<- prometheus.Metric, entity *cl
 			float64(snapshot.ActiveThreadCount),
 			nodeID,
 			snapshot.Name,
+			entity.Component.ID,
 		)
 	}
 }
