@@ -69,6 +69,7 @@ func RegisterDefaultTranslations(v *validator.Validate, trans ut.Translator) (er
 				var t string
 
 				var digits uint64
+				var kind reflect.Kind
 
 				if idx := strings.Index(fe.Param(), "."); idx != -1 {
 					digits = uint64(len(fe.Param()[idx+1:]))
@@ -79,7 +80,12 @@ func RegisterDefaultTranslations(v *validator.Validate, trans ut.Translator) (er
 					goto END
 				}
 
-				switch fe.Kind() {
+				kind = fe.Kind()
+				if kind == reflect.Ptr {
+					kind = fe.Type().Elem().Kind()
+				}
+
+				switch kind {
 				case reflect.String:
 
 					var c string
@@ -154,6 +160,7 @@ func RegisterDefaultTranslations(v *validator.Validate, trans ut.Translator) (er
 				var t string
 
 				var digits uint64
+				var kind reflect.Kind
 
 				if idx := strings.Index(fe.Param(), "."); idx != -1 {
 					digits = uint64(len(fe.Param()[idx+1:]))
@@ -164,7 +171,12 @@ func RegisterDefaultTranslations(v *validator.Validate, trans ut.Translator) (er
 					goto END
 				}
 
-				switch fe.Kind() {
+				kind = fe.Kind()
+				if kind == reflect.Ptr {
+					kind = fe.Type().Elem().Kind()
+				}
+
+				switch kind {
 				case reflect.String:
 
 					var c string
@@ -239,6 +251,7 @@ func RegisterDefaultTranslations(v *validator.Validate, trans ut.Translator) (er
 				var t string
 
 				var digits uint64
+				var kind reflect.Kind
 
 				if idx := strings.Index(fe.Param(), "."); idx != -1 {
 					digits = uint64(len(fe.Param()[idx+1:]))
@@ -249,7 +262,12 @@ func RegisterDefaultTranslations(v *validator.Validate, trans ut.Translator) (er
 					goto END
 				}
 
-				switch fe.Kind() {
+				kind = fe.Kind()
+				if kind == reflect.Ptr {
+					kind = fe.Type().Elem().Kind()
+				}
+
+				switch kind {
 				case reflect.String:
 
 					var c string
@@ -359,6 +377,7 @@ func RegisterDefaultTranslations(v *validator.Validate, trans ut.Translator) (er
 				var t string
 				var f64 float64
 				var digits uint64
+				var kind reflect.Kind
 
 				fn := func() (err error) {
 
@@ -371,7 +390,12 @@ func RegisterDefaultTranslations(v *validator.Validate, trans ut.Translator) (er
 					return
 				}
 
-				switch fe.Kind() {
+				kind = fe.Kind()
+				if kind == reflect.Ptr {
+					kind = fe.Type().Elem().Kind()
+				}
+
+				switch kind {
 				case reflect.String:
 
 					var c string
@@ -405,7 +429,8 @@ func RegisterDefaultTranslations(v *validator.Validate, trans ut.Translator) (er
 
 				case reflect.Struct:
 					if fe.Type() != reflect.TypeOf(time.Time{}) {
-						err = fmt.Errorf("tag '%s' cannot be used on a struct type.", fe.Tag())
+						err = fmt.Errorf("tag '%s' cannot be used on a struct type", fe.Tag())
+						goto END
 					}
 
 					t, err = ut.T("lt-datetime", fe.Field())
@@ -472,6 +497,7 @@ func RegisterDefaultTranslations(v *validator.Validate, trans ut.Translator) (er
 				var t string
 				var f64 float64
 				var digits uint64
+				var kind reflect.Kind
 
 				fn := func() (err error) {
 
@@ -484,7 +510,12 @@ func RegisterDefaultTranslations(v *validator.Validate, trans ut.Translator) (er
 					return
 				}
 
-				switch fe.Kind() {
+				kind = fe.Kind()
+				if kind == reflect.Ptr {
+					kind = fe.Type().Elem().Kind()
+				}
+
+				switch kind {
 				case reflect.String:
 
 					var c string
@@ -518,7 +549,8 @@ func RegisterDefaultTranslations(v *validator.Validate, trans ut.Translator) (er
 
 				case reflect.Struct:
 					if fe.Type() != reflect.TypeOf(time.Time{}) {
-						err = fmt.Errorf("tag '%s' cannot be used on a struct type.", fe.Tag())
+						err = fmt.Errorf("tag '%s' cannot be used on a struct type", fe.Tag())
+						goto END
 					}
 
 					t, err = ut.T("lte-datetime", fe.Field())
@@ -585,6 +617,7 @@ func RegisterDefaultTranslations(v *validator.Validate, trans ut.Translator) (er
 				var t string
 				var f64 float64
 				var digits uint64
+				var kind reflect.Kind
 
 				fn := func() (err error) {
 
@@ -597,7 +630,12 @@ func RegisterDefaultTranslations(v *validator.Validate, trans ut.Translator) (er
 					return
 				}
 
-				switch fe.Kind() {
+				kind = fe.Kind()
+				if kind == reflect.Ptr {
+					kind = fe.Type().Elem().Kind()
+				}
+
+				switch kind {
 				case reflect.String:
 
 					var c string
@@ -631,7 +669,8 @@ func RegisterDefaultTranslations(v *validator.Validate, trans ut.Translator) (er
 
 				case reflect.Struct:
 					if fe.Type() != reflect.TypeOf(time.Time{}) {
-						err = fmt.Errorf("tag '%s' cannot be used on a struct type.", fe.Tag())
+						err = fmt.Errorf("tag '%s' cannot be used on a struct type", fe.Tag())
+						goto END
 					}
 
 					t, err = ut.T("gt-datetime", fe.Field())
@@ -698,6 +737,7 @@ func RegisterDefaultTranslations(v *validator.Validate, trans ut.Translator) (er
 				var t string
 				var f64 float64
 				var digits uint64
+				var kind reflect.Kind
 
 				fn := func() (err error) {
 
@@ -710,7 +750,12 @@ func RegisterDefaultTranslations(v *validator.Validate, trans ut.Translator) (er
 					return
 				}
 
-				switch fe.Kind() {
+				kind = fe.Kind()
+				if kind == reflect.Ptr {
+					kind = fe.Type().Elem().Kind()
+				}
+
+				switch kind {
 				case reflect.String:
 
 					var c string
@@ -744,7 +789,8 @@ func RegisterDefaultTranslations(v *validator.Validate, trans ut.Translator) (er
 
 				case reflect.Struct:
 					if fe.Type() != reflect.TypeOf(time.Time{}) {
-						err = fmt.Errorf("tag '%s' cannot be used on a struct type.", fe.Tag())
+						err = fmt.Errorf("tag '%s' cannot be used on a struct type", fe.Tag())
+						goto END
 					}
 
 					t, err = ut.T("gte-datetime", fe.Field())
@@ -998,6 +1044,11 @@ func RegisterDefaultTranslations(v *validator.Validate, trans ut.Translator) (er
 			override:    false,
 		},
 		{
+			tag:         "e164",
+			translation: "{0} must be a valid E.164 formatted phone number",
+			override:    false,
+		},
+		{
 			tag:         "email",
 			translation: "{0} must be a valid email address",
 			override:    false,
@@ -1248,9 +1299,27 @@ func RegisterDefaultTranslations(v *validator.Validate, trans ut.Translator) (er
 			override:    false,
 		},
 		{
+			tag:         "unique",
+			translation: "{0} must contain unique values",
+			override:    false,
+		},
+		{
 			tag:         "iscolor",
 			translation: "{0} must be a valid color",
 			override:    false,
+		},
+		{
+			tag:         "oneof",
+			translation: "{0} must be one of [{1}]",
+			override:    false,
+			customTransFunc: func(ut ut.Translator, fe validator.FieldError) string {
+				s, err := ut.T(fe.Tag(), fe.Field(), fe.Param())
+				if err != nil {
+					log.Printf("warning: error translating FieldError: %#v", fe)
+					return fe.(error).Error()
+				}
+				return s
+			},
 		},
 	}
 

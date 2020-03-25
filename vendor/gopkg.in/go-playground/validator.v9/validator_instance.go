@@ -13,25 +13,31 @@ import (
 )
 
 const (
-	defaultTagName     = "validate"
-	utf8HexComma       = "0x2C"
-	utf8Pipe           = "0x7C"
-	tagSeparator       = ","
-	orSeparator        = "|"
-	tagKeySeparator    = "="
-	structOnlyTag      = "structonly"
-	noStructLevelTag   = "nostructlevel"
-	omitempty          = "omitempty"
-	isdefault          = "isdefault"
-	skipValidationTag  = "-"
-	diveTag            = "dive"
-	requiredTag        = "required"
-	namespaceSeparator = "."
-	leftBracket        = "["
-	rightBracket       = "]"
-	restrictedTagChars = ".[],|=+()`~!@#$%^&*\\\"/?<>{}"
-	restrictedAliasErr = "Alias '%s' either contains restricted characters or is the same as a restricted tag needed for normal operation"
-	restrictedTagErr   = "Tag '%s' either contains restricted characters or is the same as a restricted tag needed for normal operation"
+	defaultTagName        = "validate"
+	utf8HexComma          = "0x2C"
+	utf8Pipe              = "0x7C"
+	tagSeparator          = ","
+	orSeparator           = "|"
+	tagKeySeparator       = "="
+	structOnlyTag         = "structonly"
+	noStructLevelTag      = "nostructlevel"
+	omitempty             = "omitempty"
+	isdefault             = "isdefault"
+	requiredWithoutAllTag = "required_without_all"
+	requiredWithoutTag    = "required_without"
+	requiredWithTag       = "required_with"
+	requiredWithAllTag    = "required_with_all"
+	skipValidationTag     = "-"
+	diveTag               = "dive"
+	keysTag               = "keys"
+	endKeysTag            = "endkeys"
+	requiredTag           = "required"
+	namespaceSeparator    = "."
+	leftBracket           = "["
+	rightBracket          = "]"
+	restrictedTagChars    = ".[],|=+()`~!@#$%^&*\\\"/?<>{}"
+	restrictedAliasErr    = "Alias '%s' either contains restricted characters or is the same as a restricted tag needed for normal operation"
+	restrictedTagErr      = "Tag '%s' either contains restricted characters or is the same as a restricted tag needed for normal operation"
 )
 
 var (
@@ -53,6 +59,11 @@ type CustomTypeFunc func(field reflect.Value) interface{}
 // TagNameFunc allows for adding of a custom tag name parser
 type TagNameFunc func(field reflect.StructField) string
 
+type internalValidationFuncWrapper struct {
+	fn                FuncCtx
+	runValidatinOnNil bool
+}
+
 // Validate contains the validator settings and cache
 type Validate struct {
 	tagName          string
@@ -63,13 +74,13 @@ type Validate struct {
 	structLevelFuncs map[reflect.Type]StructLevelFuncCtx
 	customFuncs      map[reflect.Type]CustomTypeFunc
 	aliases          map[string]string
-	validations      map[string]FuncCtx
+	validations      map[string]internalValidationFuncWrapper
 	transTagFunc     map[ut.Translator]map[string]TranslationFunc // map[<locale>]map[<tag>]TranslationFunc
 	tagCache         *tagCache
 	structCache      *structCache
 }
 
-// New returns a new instacne of 'validate' with sane defaults.
+// New returns a new instance of 'validate' with sane defaults.
 func New() *Validate {
 
 	tc := new(tagCache)
@@ -81,7 +92,7 @@ func New() *Validate {
 	v := &Validate{
 		tagName:     defaultTagName,
 		aliases:     make(map[string]string, len(bakedInAliases)),
-		validations: make(map[string]FuncCtx, len(bakedInValidators)),
+		validations: make(map[string]internalValidationFuncWrapper, len(bakedInValidators)),
 		tagCache:    tc,
 		structCache: sc,
 	}
@@ -94,8 +105,14 @@ func New() *Validate {
 	// must copy validators for separate validations to be used in each instance
 	for k, val := range bakedInValidators {
 
-		// no need to error check here, baked in will always be valid
-		v.registerValidation(k, wrapFunc(val), true)
+		switch k {
+		// these require that even if the value is nil that the validation should run, omitempty still overrides this behaviour
+		case requiredWithTag, requiredWithAllTag, requiredWithoutTag, requiredWithoutAllTag:
+			_ = v.registerValidation(k, wrapFunc(val), true, true)
+		default:
+			// no need to error check here, baked in will always be valid
+			_ = v.registerValidation(k, wrapFunc(val), true, false)
+		}
 	}
 
 	v.pool = &sync.Pool{
@@ -117,8 +134,17 @@ func (v *Validate) SetTagName(name string) {
 	v.tagName = name
 }
 
-// RegisterTagNameFunc registers a function to get another name from the
-// StructField eg. the JSON name
+// RegisterTagNameFunc registers a function to get alternate names for StructFields.
+//
+// eg. to use the names which have been specified for JSON representations of structs, rather than normal Go field names:
+//
+//    validate.RegisterTagNameFunc(func(fld reflect.StructField) string {
+//        name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
+//        if name == "-" {
+//            return ""
+//        }
+//        return name
+//    })
 func (v *Validate) RegisterTagNameFunc(fn TagNameFunc) {
 	v.tagNameFunc = fn
 	v.hasTagNameFunc = true
@@ -129,18 +155,21 @@ func (v *Validate) RegisterTagNameFunc(fn TagNameFunc) {
 // NOTES:
 // - if the key already exists, the previous validation function will be replaced.
 // - this method is not thread-safe it is intended that these all be registered prior to any validation
-func (v *Validate) RegisterValidation(tag string, fn Func) error {
-	return v.RegisterValidationCtx(tag, wrapFunc(fn))
+func (v *Validate) RegisterValidation(tag string, fn Func, callValidationEvenIfNull ...bool) error {
+	return v.RegisterValidationCtx(tag, wrapFunc(fn), callValidationEvenIfNull...)
 }
 
 // RegisterValidationCtx does the same as RegisterValidation on accepts a FuncCtx validation
 // allowing context.Context validation support.
-func (v *Validate) RegisterValidationCtx(tag string, fn FuncCtx) error {
-	return v.registerValidation(tag, fn, false)
+func (v *Validate) RegisterValidationCtx(tag string, fn FuncCtx, callValidationEvenIfNull ...bool) error {
+	var nilCheckable bool
+	if len(callValidationEvenIfNull) > 0 {
+		nilCheckable = callValidationEvenIfNull[0]
+	}
+	return v.registerValidation(tag, fn, false, nilCheckable)
 }
 
-func (v *Validate) registerValidation(tag string, fn FuncCtx, bakedIn bool) error {
-
+func (v *Validate) registerValidation(tag string, fn FuncCtx, bakedIn bool, nilCheckable bool) error {
 	if len(tag) == 0 {
 		return errors.New("Function Key cannot be empty")
 	}
@@ -150,13 +179,10 @@ func (v *Validate) registerValidation(tag string, fn FuncCtx, bakedIn bool) erro
 	}
 
 	_, ok := restrictedTags[tag]
-
 	if !bakedIn && (ok || strings.ContainsAny(tag, restrictedTagChars)) {
 		panic(fmt.Sprintf(restrictedTagErr, tag))
 	}
-
-	v.validations[tag] = fn
-
+	v.validations[tag] = internalValidationFuncWrapper{fn: fn, runValidatinOnNil: nilCheckable}
 	return nil
 }
 
@@ -196,6 +222,11 @@ func (v *Validate) RegisterStructValidationCtx(fn StructLevelFuncCtx, types ...i
 	}
 
 	for _, t := range types {
+		tv := reflect.ValueOf(t)
+		if tv.Kind() == reflect.Ptr {
+			t = reflect.Indirect(tv).Interface()
+		}
+
 		v.structLevelFuncs[reflect.TypeOf(t)] = fn
 	}
 }
@@ -316,7 +347,7 @@ func (v *Validate) StructFilteredCtx(ctx context.Context, s interface{}, fn Filt
 	vd.ffn = fn
 	// vd.hasExcludes = false // only need to reset in StructPartial and StructExcept
 
-	vd.validateStruct(context.Background(), top, val, val.Type(), vd.ns[0:0], vd.actualNs[0:0], nil)
+	vd.validateStruct(ctx, top, val, val.Type(), vd.ns[0:0], vd.actualNs[0:0], nil)
 
 	if len(vd.errs) > 0 {
 		err = vd.errs
@@ -368,39 +399,37 @@ func (v *Validate) StructPartialCtx(ctx context.Context, s interface{}, fields .
 	typ := val.Type()
 	name := typ.Name()
 
-	if fields != nil {
-		for _, k := range fields {
+	for _, k := range fields {
 
-			flds := strings.Split(k, namespaceSeparator)
-			if len(flds) > 0 {
+		flds := strings.Split(k, namespaceSeparator)
+		if len(flds) > 0 {
 
-				vd.misc = append(vd.misc[0:0], name...)
-				vd.misc = append(vd.misc, '.')
+			vd.misc = append(vd.misc[0:0], name...)
+			vd.misc = append(vd.misc, '.')
 
-				for _, s := range flds {
+			for _, s := range flds {
 
-					idx := strings.Index(s, leftBracket)
+				idx := strings.Index(s, leftBracket)
 
-					if idx != -1 {
-						for idx != -1 {
-							vd.misc = append(vd.misc, s[:idx]...)
-							vd.includeExclude[string(vd.misc)] = struct{}{}
-
-							idx2 := strings.Index(s, rightBracket)
-							idx2++
-							vd.misc = append(vd.misc, s[idx:idx2]...)
-							vd.includeExclude[string(vd.misc)] = struct{}{}
-							s = s[idx2:]
-							idx = strings.Index(s, leftBracket)
-						}
-					} else {
-
-						vd.misc = append(vd.misc, s...)
+				if idx != -1 {
+					for idx != -1 {
+						vd.misc = append(vd.misc, s[:idx]...)
 						vd.includeExclude[string(vd.misc)] = struct{}{}
-					}
 
-					vd.misc = append(vd.misc, '.')
+						idx2 := strings.Index(s, rightBracket)
+						idx2++
+						vd.misc = append(vd.misc, s[idx:idx2]...)
+						vd.includeExclude[string(vd.misc)] = struct{}{}
+						s = s[idx2:]
+						idx = strings.Index(s, leftBracket)
+					}
+				} else {
+
+					vd.misc = append(vd.misc, s...)
+					vd.includeExclude[string(vd.misc)] = struct{}{}
 				}
+
+				vd.misc = append(vd.misc, '.')
 			}
 		}
 	}
@@ -489,7 +518,7 @@ func (v *Validate) StructExceptCtx(ctx context.Context, s interface{}, fields ..
 //
 // WARNING: a struct can be passed for validation eg. time.Time is a struct or
 // if you have a custom type and have registered a custom type handler, so must
-// allow it; however unforseen validations will occur if trying to validate a
+// allow it; however unforeseen validations will occur if trying to validate a
 // struct that is meant to be passed to 'validate.Struct'
 //
 // It returns InvalidValidationError for bad values passed in and nil or ValidationErrors as error otherwise.
@@ -507,7 +536,7 @@ func (v *Validate) Var(field interface{}, tag string) error {
 //
 // WARNING: a struct can be passed for validation eg. time.Time is a struct or
 // if you have a custom type and have registered a custom type handler, so must
-// allow it; however unforseen validations will occur if trying to validate a
+// allow it; however unforeseen validations will occur if trying to validate a
 // struct that is meant to be passed to 'validate.Struct'
 //
 // It returns InvalidValidationError for bad values passed in and nil or ValidationErrors as error otherwise.
@@ -518,36 +547,18 @@ func (v *Validate) VarCtx(ctx context.Context, field interface{}, tag string) (e
 		return nil
 	}
 
-	// find cached tag
-	ctag, ok := v.tagCache.Get(tag)
-	if !ok {
-		v.tagCache.lock.Lock()
-		defer v.tagCache.lock.Unlock()
-
-		// could have been multiple trying to access, but once first is done this ensures tag
-		// isn't parsed again.
-		ctag, ok = v.tagCache.Get(tag)
-		if !ok {
-			ctag, _ = v.parseFieldTagsRecursive(tag, "", "", false)
-			v.tagCache.Set(tag, ctag)
-		}
-	}
-
+	ctag := v.fetchCacheTag(tag)
 	val := reflect.ValueOf(field)
-
 	vd := v.pool.Get().(*validate)
 	vd.top = val
 	vd.isPartial = false
-
 	vd.traverseField(ctx, val, val, vd.ns[0:0], vd.actualNs[0:0], defaultCField, ctag)
 
 	if len(vd.errs) > 0 {
 		err = vd.errs
 		vd.errs = nil
 	}
-
 	v.pool.Put(vd)
-
 	return
 }
 
@@ -559,7 +570,7 @@ func (v *Validate) VarCtx(ctx context.Context, field interface{}, tag string) (e
 //
 // WARNING: a struct can be passed for validation eg. time.Time is a struct or
 // if you have a custom type and have registered a custom type handler, so must
-// allow it; however unforseen validations will occur if trying to validate a
+// allow it; however unforeseen validations will occur if trying to validate a
 // struct that is meant to be passed to 'validate.Struct'
 //
 // It returns InvalidValidationError for bad values passed in and nil or ValidationErrors as error otherwise.
@@ -578,7 +589,7 @@ func (v *Validate) VarWithValue(field interface{}, other interface{}, tag string
 //
 // WARNING: a struct can be passed for validation eg. time.Time is a struct or
 // if you have a custom type and have registered a custom type handler, so must
-// allow it; however unforseen validations will occur if trying to validate a
+// allow it; however unforeseen validations will occur if trying to validate a
 // struct that is meant to be passed to 'validate.Struct'
 //
 // It returns InvalidValidationError for bad values passed in and nil or ValidationErrors as error otherwise.
@@ -588,36 +599,17 @@ func (v *Validate) VarWithValueCtx(ctx context.Context, field interface{}, other
 	if len(tag) == 0 || tag == skipValidationTag {
 		return nil
 	}
-
-	// find cached tag
-	ctag, ok := v.tagCache.Get(tag)
-	if !ok {
-		v.tagCache.lock.Lock()
-		defer v.tagCache.lock.Unlock()
-
-		// could have been multiple trying to access, but once first is done this ensures tag
-		// isn't parsed again.
-		ctag, ok = v.tagCache.Get(tag)
-		if !ok {
-			ctag, _ = v.parseFieldTagsRecursive(tag, "", "", false)
-			v.tagCache.Set(tag, ctag)
-		}
-	}
-
+	ctag := v.fetchCacheTag(tag)
 	otherVal := reflect.ValueOf(other)
-
 	vd := v.pool.Get().(*validate)
 	vd.top = otherVal
 	vd.isPartial = false
-
 	vd.traverseField(ctx, otherVal, reflect.ValueOf(field), vd.ns[0:0], vd.actualNs[0:0], defaultCField, ctag)
 
 	if len(vd.errs) > 0 {
 		err = vd.errs
 		vd.errs = nil
 	}
-
 	v.pool.Put(vd)
-
 	return
 }
