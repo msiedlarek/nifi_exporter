@@ -1,6 +1,6 @@
 ---
 exporter:
-  listenAddress: 127.0.0.1:9103
+  listenAddress: 0.0.0.0:9103
 nodes:
   - url: http://test-nifi.example.com:8080
     username: nifitest
