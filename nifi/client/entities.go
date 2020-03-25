@@ -283,7 +283,7 @@ type ProcessGroupStatusSnapshotDTO struct {
 	ID string `json:"id"`
 	// The name of this process group.
 	Name string `json:"name"`
-	// The status of all conenctions in the process group.
+	// The status of all connections in the process group.
 	ConnectionStatusSnapshots []ConnectionStatusSnapshotEntity `json:"connectionStatusSnapshots"`
 	// The status of all processors in the process group.
 	ProcessorStatusSnapshots []ProcessorStatusSnapshotEntity `json:"processorStatusSnapshots"`
